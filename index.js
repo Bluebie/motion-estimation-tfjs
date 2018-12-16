@@ -13,13 +13,14 @@ const modelFactory = require('./models')
 const samplePicsPath = './sample-pics'
 
 // training config
-const trainingEpochs = 5
-const batchSize = 500
-const trainingCycles = 1000
+const trainingEpochs = 1
+const batchSize = 250
+const trainingCycles = 50000
 const modelName = 'motionDense1'
-const inputPatchSize = 32 // how big the square tile is that the estimator sees
-const maxMotionEstimate = 30 // how big the maximum movement between the two frames is, in pixels, in the auto training set
+const inputPatchSize = 12 // how big the square tile is that the estimator sees
+const maxMotionEstimate = inputPatchSize / 2 // how big the maximum movement between the two frames is, in pixels, in the auto training set
 const inputShape = [inputPatchSize, inputPatchSize, 6] // 6 channels because two rgb patches are combined
+const modelMultiplier = 1
 
 const saveModelInterval = 10
 const learningRate = 0.0005
@@ -33,9 +34,9 @@ async function main() {
   console.log("Loaded pictures")
 
   console.log("Setting up model...")
-  let model = modelFactory[modelName](inputShape)
+  let model = modelFactory[modelName](inputShape, modelMultiplier)
   // compile model
-  model.compile({ optimizer, loss: 'meanSquaredError', metrics: ['accuracy'] })
+  model.compile({ optimizer, loss: 'meanAbsoluteError', metrics: ['accuracy'] })
 
   // generate test data for regular validation
   const testData = await training.getRandomTrainingPairs(inputPatchSize, maxMotionEstimate, batchSize)
@@ -56,13 +57,13 @@ async function main() {
     let testAccPercent = testResult[1].dataSync()[0] * 100;
     console.log(`============================= Model Accuracy on testset: ${testAccPercent.toFixed(1)}% - batch ${trainingNum + 1}`)
 
-    if (trainingNum % saveModelInterval == 0) {
-      // save model
-      const saveResult = await model.save(`file://./${modelName}`)
-      //console.log('model save result: ', saveResult)
-      fs.writeFileSync(`./${modelName}/accuracy.txt`, `accuracy: ${testAccPercent.toFixed(1)}%\n`)
-      fs.writeFileSync(`./${modelName}/batchNum.txt`, `${trainingNum + 1}`)
-    }
+    // if (trainingNum % saveModelInterval == 0) {
+    //   // save model
+    //   const saveResult = await model.save(`file://./${modelName}`)
+    //   //console.log('model save result: ', saveResult)
+    //   fs.writeFileSync(`./${modelName}/accuracy.txt`, `accuracy: ${testAccPercent.toFixed(1)}%\n`)
+    //   fs.writeFileSync(`./${modelName}/batchNum.txt`, `${trainingNum + 1}`)
+    // }
 
     trainingNum += 1
   }
@@ -71,7 +72,7 @@ async function main() {
   const testResult = model.evaluate(testData.x, testData.y);
   const testAccPercent = testResult[1].dataSync()[0] * 100;
   console.log(`============================= Final test accuracy: ${testAccPercent.toFixed(1)}%`)
-  const saveResult = await model.save(`file://./${modelName}`)
+  //const saveResult = await model.save(`file://./${modelName}`)
 
   testData.x.dispose()
   testData.y.dispose()

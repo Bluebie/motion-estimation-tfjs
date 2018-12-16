@@ -16,7 +16,7 @@ class TrainingData {
     let files = await promisify(fs.readdir)(this.path)
     let fullPaths = files.filter((x) => x.match(/\.(jpg|jpeg|png)$/i)).map((filename)=> path.join(this.path, filename))
     // to speed up debug
-    //fullPaths = [fullPaths[0], fullPaths[1]]
+    fullPaths = fullPaths.slice(0, 5)
     for (let imgIdx = 0; imgIdx < fullPaths.length; imgIdx++) {
       let imgPath = fullPaths[imgIdx]
       let { data, info } = await sharp(imgPath).raw().toBuffer({ resolveWithObject: true })
@@ -72,8 +72,8 @@ class TrainingData {
     // let widthMax  = this.dataset.shape[1] - (size * 2) - Math.abs(randomShift * 2)
     // let heightMax = this.dataset.shape[2] - (size * 2) - Math.abs(randomShift * 2)
     for (let i = 0; i < trainingSize; i++) {
-      let randomX = ((Math.random() * 2) - 1) * randomShift
-      let randomY = ((Math.random() * 2) - 1) * randomShift
+      let randomX = Math.round(((Math.random() * 2) - 1) * randomShift)
+      let randomY = Math.round(((Math.random() * 2) - 1) * randomShift)
       let [box_a, box_b] = this.getRandomConstrinedBoxPair(this.dataset.shape[1], this.dataset.shape[2], size, randomX, randomY)
       cropJobsA.push(box_a)
       cropJobsB.push(box_b)
