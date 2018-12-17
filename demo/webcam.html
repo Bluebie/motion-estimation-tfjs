@@ -1,0 +1,48 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Motion Estimation Demo</title>
+</head>
+<body>
+  <div>
+    <video id=camera width=640 height=480 autoplay></video>
+    <canvas id=vis width=640 height=480></canvas>
+  </div>
+
+  <script src="../node_modules/@tensorflow/tfjs/dist/tf.min.js"></script>
+  <script>
+    var canvas = vis.getContext('2d', { alpha: false })
+
+    navigator.mediaDevices.getUserMedia({video: true})
+      .then((stream)=> { camera.srcObject = stream; mainLoop(); })
+      .catch((error)=> alert(`getUserMedia Error: ${error}`))
+
+    var lastImageTensor;
+    var mainLoop = async function() {
+      requestAnimationFrame(mainLoop)
+      let isNewFrame = false
+      //let thisImageTensor = tf.tidy(()=> {
+        
+        let image = tf.fromPixels(camera)
+        
+        // initialise lastImageTensor if it hasn't been yet so stuff doesn't crash thru the first loop
+        if (!lastImageTensor) lastImageTensor = image
+        isNewFrame = !tf.all(tf.equal(lastImageTensor, image)).get()
+        //isNewFrame = Math.random() > 0.95
+        return image
+      //})
+
+      if (isNewFrame) {
+        console.log("new frame!")
+        if (lastImageTensor) lastImageTensor.dispose()
+        lastImageTensor = thisImageTensor
+        tf.toPixels(thisImageTensor, vis) // returns a promise, but, whatever
+      } else {
+        thisImageTensor.dispose()
+      }
+    }
+  </script>
+</body>
+</html>
