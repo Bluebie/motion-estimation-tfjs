@@ -57,13 +57,13 @@ async function main() {
     let testAccPercent = testResult[1].dataSync()[0] * 100;
     console.log(`============================= Model Accuracy on testset: ${testAccPercent.toFixed(1)}% - batch ${trainingNum + 1}`)
 
-    // if (trainingNum % saveModelInterval == 0) {
-    //   // save model
-    //   const saveResult = await model.save(`file://./${modelName}`)
-    //   //console.log('model save result: ', saveResult)
-    //   fs.writeFileSync(`./${modelName}/accuracy.txt`, `accuracy: ${testAccPercent.toFixed(1)}%\n`)
-    //   fs.writeFileSync(`./${modelName}/batchNum.txt`, `${trainingNum + 1}`)
-    // }
+    if (trainingNum % saveModelInterval == 0) {
+      // save model
+      const saveResult = await model.save(`file://./${modelName}`)
+      //console.log('model save result: ', saveResult)
+      fs.writeFileSync(`./${modelName}/accuracy.txt`, `accuracy: ${testAccPercent.toFixed(1)}%\n`)
+      fs.writeFileSync(`./${modelName}/batchNum.txt`, `${trainingNum + 1}`)
+    }
 
     trainingNum += 1
   }
@@ -72,7 +72,7 @@ async function main() {
   const testResult = model.evaluate(testData.x, testData.y);
   const testAccPercent = testResult[1].dataSync()[0] * 100;
   console.log(`============================= Final test accuracy: ${testAccPercent.toFixed(1)}%`)
-  //const saveResult = await model.save(`file://./${modelName}`)
+  const saveResult = await model.save(`file://./${modelName}`)
 
   testData.x.dispose()
   testData.y.dispose()
