@@ -22,12 +22,12 @@ class TrainingData {
       let { data, info } = await sharp(imgPath).raw().toBuffer({ resolveWithObject: true })
       //console.log(`loading ${imgPath}:`, info)
       // if this is the first image, note it's shape for later validation
-      if (!shape) shape = [info.width, info.height, info.channels]
+      if (!shape) shape = [info.height, info.width, info.channels]
       // validate that the image is the same shape as the last image
-      if (shape[0] != info.width || shape[1] != info.height || shape[2] != info.channels)
+      if (shape[0] != info.height || shape[1] != info.width || shape[2] != info.channels)
         throw new Error(`${imgPath} doesn't have the same shape as previous image`)
       // setup a float32array to store all the images if one isn't already setup
-      if (!floatArray) floatArray = new Float32Array(fullPaths.length * info.width * info.height * info.channels)
+      if (!floatArray) floatArray = new Float32Array(fullPaths.length * info.height * info.width * info.channels)
       
       // scan out the pixel data from the image in to the big float array
       let imgByteSize = shape[0] * shape[1] * shape[2]
@@ -74,7 +74,7 @@ class TrainingData {
     for (let i = 0; i < trainingSize; i++) {
       let randomX = Math.round(((Math.random() * 2) - 1) * randomShift)
       let randomY = Math.round(((Math.random() * 2) - 1) * randomShift)
-      let [box_a, box_b] = this.getRandomConstrinedBoxPair(this.dataset.shape[1], this.dataset.shape[2], size, randomX, randomY)
+      let [box_a, box_b] = this.getRandomConstrinedBoxPair(this.dataset.shape[2], this.dataset.shape[1], size, randomX, randomY)
       cropJobsA.push(box_a)
       cropJobsB.push(box_b)
       boxIndexes.push(Math.floor(Math.random() * this.dataset.shape[0])) // choose a random image to take this sample from
