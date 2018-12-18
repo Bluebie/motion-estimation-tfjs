@@ -14,9 +14,9 @@ const samplePicsPath = './sample-pics'
 
 // training config
 const trainingEpochs = 1
-const batchSize = 250
-const trainingCycles = 50000
-const modelName = 'motionDense1'
+const batchSize = 2000*4
+const trainingCycles = 7000/4 * 100
+const modelName = 'motionConv2'
 const inputPatchSize = 12 // how big the square tile is that the estimator sees
 const maxMotionEstimate = inputPatchSize / 2 // how big the maximum movement between the two frames is, in pixels, in the auto training set
 const inputShape = [inputPatchSize, inputPatchSize, 6] // 6 channels because two rgb patches are combined
@@ -43,7 +43,6 @@ async function main() {
 
   let trainingNum = 0
   while (trainingNum < trainingCycles) {
-    console.log("Training, batches remaining: " + batchSize)
 
     let batchData = await training.getRandomTrainingPairs(inputPatchSize, maxMotionEstimate, batchSize)
 
@@ -53,13 +52,12 @@ async function main() {
     batchData.x.dispose()
     batchData.y.dispose()
 
-    let testResult = model.evaluate(testData.x, testData.y);
-    let testAccPercent = testResult[1].dataSync()[0] * 100;
-    console.log(`============================= Model Accuracy on testset: ${testAccPercent.toFixed(1)}% - batch ${trainingNum + 1}`)
-
     if (trainingNum % saveModelInterval == 0) {
+      let testAccPercent = tf.tidy(()=> model.evaluate(testData.x, testData.y)[1].dataSync()[0] * 100)
+      console.log(`============================= Model Accuracy on testset: ${testAccPercent.toFixed(1)}% - batch ${trainingNum + 1}`)
+
       // save model
-      const saveResult = await model.save(`file://./${modelName}`)
+      const saveResult = await model.save(`file://./trained-models/${modelName}`)
       //console.log('model save result: ', saveResult)
       fs.writeFileSync(`./${modelName}/accuracy.txt`, `accuracy: ${testAccPercent.toFixed(1)}%\n`)
       fs.writeFileSync(`./${modelName}/batchNum.txt`, `${trainingNum + 1}`)
@@ -69,10 +67,9 @@ async function main() {
   }
   console.log("Training Complete. Evaluating...")
 
-  const testResult = model.evaluate(testData.x, testData.y);
-  const testAccPercent = testResult[1].dataSync()[0] * 100;
+  let testAccPercent = tf.tidy(()=> model.evaluate(testData.x, testData.y)[1].dataSync()[0] * 100)
   console.log(`============================= Final test accuracy: ${testAccPercent.toFixed(1)}%`)
-  const saveResult = await model.save(`file://./${modelName}`)
+  const saveResult = await model.save(`file://./trained-models/${modelName}`)
 
   testData.x.dispose()
   testData.y.dispose()
