@@ -16,7 +16,7 @@ class TrainingData {
     let files = await promisify(fs.readdir)(this.path)
     let fullPaths = files.filter((x) => x.match(/\.(jpg|jpeg|png)$/i)).map((filename)=> path.join(this.path, filename))
     // to speed up debug
-    fullPaths = fullPaths.slice(0, 5)
+    //fullPaths = fullPaths.slice(0, 5)
     for (let imgIdx = 0; imgIdx < fullPaths.length; imgIdx++) {
       let imgPath = fullPaths[imgIdx]
       let { data, info } = await sharp(imgPath).raw().toBuffer({ resolveWithObject: true })
@@ -81,27 +81,35 @@ class TrainingData {
       randomMotions.push([0.5 + (randomX / size / 2), 0.5 + (randomY / size / 2)])
     }
 
-    let cropJobsAT = tf.tensor2d(cropJobsA, [trainingSize, 4], 'float32')
-    let cropJobsBT = tf.tensor2d(cropJobsB, [trainingSize, 4], 'float32')
-    let boxIdxT = tf.tensor1d(boxIndexes, 'int32')
+    let {x1Tensor, x2Tensor} = tf.tidy(()=> {
+      let cropJobsAT = tf.tensor2d(cropJobsA, [trainingSize, 4], 'float32')
+      let cropJobsBT = tf.tensor2d(cropJobsB, [trainingSize, 4], 'float32')
+      let boxIdxT = tf.tensor1d(boxIndexes, 'int32')
 
-    let x1Tensor = tf.tidy(()=> tf.image.cropAndResize(this.dataset, cropJobsAT, boxIdxT, [size, size]))
-    let x2Tensor = tf.tidy(()=> tf.image.cropAndResize(this.dataset, cropJobsBT, boxIdxT, [size, size]))
+      return {
+        x1Tensor: tf.image.cropAndResize(this.dataset, cropJobsAT, boxIdxT, [size, size]),
+        x2Tensor: tf.image.cropAndResize(this.dataset, cropJobsBT, boxIdxT, [size, size])
+      }
+    })
 
-    let x1 = await x1Tensor.flatten().data()
-    let x2 = await x2Tensor.flatten().data()
+    let x1 = await x1Tensor.data()
+    x1Tensor.dispose()
+    let x2 = await x2Tensor.data()
+    x2Tensor.dispose()
+
 
     let zippedData = new Float32Array(x1.length + x2.length)
     x1.forEach((value, index)=> {
       zippedData[(index * 2)] = value
       zippedData[(index * 2) + 1] = x2[index]
     })
-    let x = tf.tensor4d(zippedData, [trainingSize, size, size, this.dataset.shape[3] * 2])
-    let y = tf.tensor2d(randomMotions, [trainingSize, 2])
-    // clean up memory
-    x1Tensor.dispose(); x2Tensor.dispose();
 
-    return {x, y}
+    return tf.tidy(()=> {
+      return {
+        x: tf.tensor4d(zippedData, [trainingSize, size, size, this.dataset.shape[3] * 2]),
+        y: tf.tensor2d(randomMotions, [trainingSize, 2])
+      }
+    })
   }
 }
 
