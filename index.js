@@ -59,8 +59,8 @@ async function main() {
       // save model
       const saveResult = await model.save(`file://./trained-models/${modelName}`)
       //console.log('model save result: ', saveResult)
-      fs.writeFileSync(`./${modelName}/accuracy.txt`, `accuracy: ${testAccPercent.toFixed(1)}%\n`)
-      fs.writeFileSync(`./${modelName}/batchNum.txt`, `${trainingNum + 1}`)
+      fs.writeFileSync(`./trained-models/${modelName}/accuracy.txt`, `accuracy: ${testAccPercent.toFixed(1)}%\n`)
+      fs.writeFileSync(`./trained-models/${modelName}/batchNum.txt`, `${trainingNum + 1}`)
     }
 
     trainingNum += 1
