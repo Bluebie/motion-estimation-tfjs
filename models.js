@@ -46,7 +46,7 @@ let modelBuilders = {
     return model
   },
 
-  // high score: bs 250, ~85% accurate after like 15,000 training cycles (this thing learns slowly)
+  // 70.6% - needs longer training than most other networks
   motionConv2: (shape, multiplier)=> {
     const model = tf.sequential()
     model.add(tf.layers.conv2d({
@@ -60,14 +60,8 @@ let modelBuilders = {
       kernelSize: 4,
       activation: 'relu'
     }))
-    model.add(tf.layers.conv2d({
-      filters: 3,
-      kernelSize: 4,
-      activation: 'linear'
-    }))
-    model.add(tf.layers.globalAveragePooling2d({}))
-    //model.add(tf.layers.flatten())
-    //model.add(tf.layers.dense({units: Math.round(42 * multiplier), activation: 'relu'}))
+    model.add(tf.layers.flatten())
+    model.add(tf.layers.dense({units: Math.round(42 * multiplier), activation: 'relu'}))
     model.add(tf.layers.dense({units: 2, activation: 'linear'}))
     return model
   },
