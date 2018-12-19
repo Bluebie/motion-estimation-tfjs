@@ -16,7 +16,7 @@ const samplePicsPath = './sample-pics'
 const trainingEpochs = 1
 const batchSize = 2000*4
 const trainingCycles = 7000/4 * 100
-const modelName = 'motionConv4'
+const modelName = 'motionDense2'
 const inputPatchSize = 12 // how big the square tile is that the estimator sees
 const maxMotionEstimate = inputPatchSize / 2 // how big the maximum movement between the two frames is, in pixels, in the auto training set
 const inputShape = [inputPatchSize, inputPatchSize, 6] // 6 channels because two rgb patches are combined
@@ -42,9 +42,10 @@ async function main() {
   const testData = await training.getRandomTrainingPairs(inputPatchSize, maxMotionEstimate, batchSize)
 
   let trainingNum = 0
+  let nextTrainingBatch = training.getRandomTrainingPairs(inputPatchSize, maxMotionEstimate, batchSize)
   while (trainingNum < trainingCycles) {
-
-    let batchData = await training.getRandomTrainingPairs(inputPatchSize, maxMotionEstimate, batchSize)
+    let batchData = await nextTrainingBatch
+    nextTrainingBatch = training.getRandomTrainingPairs(inputPatchSize, maxMotionEstimate, batchSize)
 
     await model.fit(batchData.x, batchData.y, { batchSize, epochs: trainingEpochs })
 

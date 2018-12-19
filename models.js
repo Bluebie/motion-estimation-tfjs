@@ -96,7 +96,7 @@ let modelBuilders = {
   },
 
   // what if the front end is just a tiny conv that can invent something kinda like hsv if it wants
-  // gets to 88% after 50,000 cycles
+  // gets to 90% after 100,000 cycles
   motionConv4: (shape, mul)=> {
     const model = tf.sequential()
     model.add(tf.layers.conv2d({inputShape: shape, filters: 6, kernelSize: 1, activation: 'tanh'}))
