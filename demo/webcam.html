@@ -4,11 +4,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>Motion Estimation Demo</title>
+  <script>
+  var motionModelName = "motionDense2" // which ML model are we using to infer dense motion from video frames?
+  </script>
 </head>
 <body>
   <div>
     <canvas id=vis width=640 height=480></canvas>
-    <video id=camera width=640 height=480 autoplay></video>
+    <!-- <video id=camera width=640 height=480 autoplay></video> -->
   </div>
 
   <script src="../node_modules/@tensorflow/tfjs/dist/tf.min.js"></script>
@@ -16,52 +19,162 @@
     // get access to the canvas to draw motion vectors over the video
     var canvas = vis.getContext('2d', { alpha: false })
 
-    // ask browser to stream the webcam in to the <video> element
-    navigator.mediaDevices.getUserMedia({video: true})
-      .then((stream)=> { camera.srcObject = stream; mainLoop(); })
-      .catch((error)=> alert(`getUserMedia Error: ${error}`))
+    class MotionDemo {
+      constructor(options) {
+        this.canvasTag = document.querySelector(options.canvas)
+        this.canvas = this.canvasTag.getContext('2d', {alpha: false})
+        this.canvasTag.insertAdjacentHTML('beforebegin', '<video autoplay></video>')
+        this.cameraTag = this.canvasTag.previousElementSibling
+        this.cameraTag.setAttribute('width', this.canvasTag.getAttribute('width'))
+        this.cameraTag.setAttribute('height', this.canvasTag.getAttribute('height'))
+        this.pixelWidth = parseInt(this.cameraTag.getAttribute("width"))
+        this.pixelHeight = parseInt(this.cameraTag.getAttribute("height"))
+        this.motionModelURL = options.modelURL || `../trained-models/motionDense2/model.json`
 
-    // persistant to store the last webcam image as a tensorflow tensor
-    var lastImageTensor;
-    // loop that runs watching the webcam feed and processing it through tensorflow
-    var mainLoop = async function() {
-      // keep track of if the webcam has pushed a new frame since the last time we read the video buffer
-      let isNewFrame = false
-      // fetch the video frame and check if it's content has changed
-      let thisImageTensor = tf.tidy(()=> {
-        // grab a tensor snapshot of the current webcam feed
-        let image = tf.fromPixels(camera)
-        
-        // verify we have an old image to compare to
-        if (lastImageTensor) {
-          // check if the frames are the different
-          isNewFrame = !tf.all(tf.equal(lastImageTensor, image)).get()
-        } else {
-          // if there's no last frame, then this one's definitely new! the first is always new!
-          isNewFrame = true
-        }
-        // return frame out so it becomes thisImageTensor
-        return image
-      })
-      
-      // when a new frame comes in, we can do some processing!
-      if (isNewFrame) {
-        // console.log("new frame!")
-        // draw the new frame to our visualisation canvas
-        await tf.toPixels(thisImageTensor, vis)
+        // pre-generate box shapes to cover the input video
+        this.grid = options.grid || [8, 6]
+        this.crop = tf.tidy(() => {
+          let locations = []
+          for (let y = 0; y < this.grid[1]; y++) {
+            for (let x = 0; x < this.grid[0]; x++) {
+              locations.push([y / this.grid[1], x / this.grid[0], (y+1) / this.grid[1], (x+1) / this.grid[0]])
+            }
+          }
+          return {
+            boxes: locations, //tf.tensor2d(locations, [this.grid[0] * this.grid[1], 4], 'float32'),
+            indexes: locations.map(()=> 0),
+            pixelBoxes: locations.map(([y1, x1, y2, x2])=> [y1 * this.pixelHeight, x1 * this.pixelWidth, y2 * this.pixelHeight, x2 * this.pixelWidth]),
+            centers: locations.map(([y1, x1, y2, x2])=> [((y1+y2) / 2), ((x1+x2) / 2)]),
+            pixelCenters: locations.map(([y1, x1, y2, x2])=> [((y1+y2) / 2) * this.pixelHeight, ((x1+x2) / 2) * this.pixelWidth]),
+            boxSizes: locations.map(([y1, x1, y2, x2])=> [y2 - y1, x2 - x1]),
+            pixelBoxSizes: locations.map(([y1, x1, y2, x2])=> [(y2 - y1) * this.pixelHeight, (x2 - x1) * this.pixelWidth])
+          }
+        })
 
-        // clear out memory from old frame and make this frame in to the old frame now we're done
-        if (lastImageTensor) lastImageTensor.dispose()
-        lastImageTensor = thisImageTensor
-      } else {
-        // no new frame? either use it to fill the lastImageTensor variable, or clear out the memory
-        if (!lastImageTensor) lastImageTensor = thisImageTensor
-        else thisImageTensor.dispose()
+        this.lastImageTensor = null // persistant to store the last webcam image as a tensorflow tensor
+        this.running = false // controls if demo continues running
       }
 
-      // request the browser run this function again next time it gets ready to refresh the screen
-      requestAnimationFrame(mainLoop)
+      async start() {
+        this.running = true
+
+        console.log("loading model...")
+        this.model = await tf.loadModel(this.motionModelURL)
+        this.crop.resize = this.model.getLayer(null, 0).input.shape.slice(1,3)
+        console.log("requesting video stream...")
+        const webcamStream = await navigator.mediaDevices.getUserMedia({video: true})
+        console.log("ready, starting demo")
+        this.cameraTag.srcObject = webcamStream
+        requestAnimationFrame(()=> this.process())
+      }
+
+      // stop the demo from running
+      stop() {
+        this.running = false
+      }
+
+      // clear out any memory allocated by tensorflow
+      dispose() {
+        this.stop()
+        if (this.lastImageTensor) this.lastImageTensor.dispose()
+        if (this.lastImageCrops)  this.lastImageCrops.dispose()
+      }
+
+      // update loop, checks for a new frame, and processes it through the ML model if one has arrived
+      async process() {
+        if (!this.running) return // check we're still running
+
+        // keep track of if the webcam has pushed a new frame since the last time we read the video buffer
+        let isNewFrame = false
+        // fetch the video frame and check if it's content has changed
+        let thisImageTensor = tf.tidy(()=> {
+          // grab a tensor snapshot of the current webcam feed
+          let image = tf.fromPixels(this.cameraTag)
+          
+          // verify we have an old image to compare to
+          if (this.lastImageTensor) {
+            // check if the frames are the different
+            isNewFrame = !tf.all(tf.equal(this.lastImageTensor, image)).get()
+          } else {
+            // if there's no last frame, then this one's definitely new! the first is always new!
+            isNewFrame = true
+          }
+          // return frame out so it becomes thisImageTensor
+          return image
+        })
+        
+        // when a new frame comes in, we can do some processing!
+        if (isNewFrame && this.lastImageTensor) {
+          // generate a batch of cropped frame parts to predict on
+          let inputData = await Promise.all(tf.tidy(()=> [
+            tf.image.cropAndResize(this.lastImageTensor.cast('float32').div(255).expandDims(), this.crop.boxes, this.crop.indexes, this.crop.resize).data(),
+            tf.image.cropAndResize(     thisImageTensor.cast('float32').div(255).expandDims(), this.crop.boxes, this.crop.indexes, this.crop.resize).data()
+          ]))
+          let interlace = tf.tidy(()=> {
+            let data = new Float32Array(inputData[0].length + inputData[1].length)
+            for (let i = 0; i < inputData[0].length; i += 1) {
+              data[(i*2)]   = inputData[0][i]
+              data[(i*2)+1] = inputData[1][i]
+            }
+            return tf.tensor4d(data, [this.crop.boxes.length, this.crop.resize[1], this.crop.resize[0], thisImageTensor.shape[2] * 2], 'float32')
+          })
+          // run bulk prediction job
+          let predictionsPromise = this.model.predict(interlace)
+
+          // draw the new frame to our visualisation canvas
+          await tf.toPixels(thisImageTensor, vis)
+
+          let predictions = await predictionsPromise
+          //let toXY = ()=> []
+          let dotSize = 3
+          let indicatorColor = 'red'
+          for (let cell = 0; cell < predictions.shape[0]; cell++) {
+            let motionX = (predictions.get(cell, 0) * 2) - 1
+            let motionY = (predictions.get(cell, 1) * 2) - 1
+            let cellPixelBox = this.crop.pixelBoxes[cell]
+            let cellPixelCenter = this.crop.pixelCenters[cell]
+            let cellPixelSize = this.crop.pixelBoxSizes[cell]
+            let visLineX = cellPixelCenter[1] - (motionX * (cellPixelSize[1] / 2))
+            let visLineY = cellPixelCenter[0] - (motionY * (cellPixelSize[0] / 2))
+            this.canvas.beginPath()
+            this.canvas.moveTo(cellPixelCenter[1], cellPixelCenter[0])
+            this.canvas.lineTo(visLineX, visLineY)
+            this.canvas.closePath()
+            this.canvas.strokeStyle = indicatorColor
+            this.canvas.stroke()
+            this.canvas.beginPath()
+            this.canvas.arc(visLineX, visLineY, dotSize / 2, 0, Math.PI * 2)
+            this.canvas.closePath()
+            this.canvas.fillStyle = indicatorColor
+            this.canvas.fill()
+          }
+          predictions.dispose()
+
+          // clear out memory from old frame and make this frame in to the old frame now we're done
+          if (this.lastImageTensor) this.lastImageTensor.dispose()
+          this.lastImageTensor = thisImageTensor
+          //this.lastImageCrops = thisImageCrops
+        } else {
+          // no new frame? either use it to fill the this.lastImageTensor variable, or clear out the memory
+          if (!this.lastImageTensor) this.lastImageTensor = thisImageTensor
+          else thisImageTensor.dispose()
+        }
+
+        // request the browser run this function again next time it gets ready to refresh the screen
+        requestAnimationFrame(()=> this.process())
+      }
     }
+
+    async function main() {
+      window.demo = new MotionDemo({
+        canvas: "#vis",
+        grid: [24, 18]
+      })
+
+      await demo.start()
+    }
+
+    main()//.catch((err)=> alert(err))
   </script>
 </body>
 </html>

@@ -31,12 +31,13 @@ let modelBuilders = {
   },
 
   // what if we can make this really small tho
+  // high score: 89.1% after 71000 cycles
   motionDense2: (shape, multiplier)=> {
     const model = tf.sequential()
     model.add(tf.layers.flatten({inputShape: shape}))
-    model.add(tf.layers.dense({units: Math.round(shape[0] * shape[1]), activation: 'tanh'}))
-    model.add(tf.layers.dense({units: Math.round(shape[0] * shape[1]), activation: 'tanh'}))
-    model.add(tf.layers.dense({units: Math.round(shape[0] * shape[1]), activation: 'relu'}))
+    model.add(tf.layers.dense({units: Math.round(shape[0] * shape[1]) * multiplier, activation: 'tanh'}))
+    model.add(tf.layers.dense({units: Math.round(shape[0] * shape[1]) * multiplier, activation: 'tanh'}))
+    model.add(tf.layers.dense({units: Math.round(shape[0] * shape[1]) * multiplier, activation: 'relu'}))
     model.add(tf.layers.dense({units: 2, activation: 'linear'}))
     return model
   },
