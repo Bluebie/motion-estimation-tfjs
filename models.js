@@ -95,7 +95,8 @@ let modelBuilders = {
   trueMotionConv1: (shape, mul)=> {
     const model = tf.sequential()
     model.add(tf.layers.conv2d({
-      inputShape: shape,
+      //inputShape: shape,
+      inputShape: [null, null, 6],
       filters: Math.round(shape[0] * shape[1] * mul),
       kernelSize: [shape[0], shape[1]],
       pad: 'valid',
