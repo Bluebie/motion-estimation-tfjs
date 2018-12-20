@@ -8,6 +8,7 @@ const {promisify} = require('util')
 class TrainingData {
   constructor(datapath) {
     this.path = datapath
+    this.outputShape = [2]
   }
 
   // load all the jpegs, decoded, in to ram
@@ -69,8 +70,7 @@ class TrainingData {
     let boxIndexes = []
     let randomMotions = []
 
-    // let widthMax  = this.dataset.shape[1] - (size * 2) - Math.abs(randomShift * 2)
-    // let heightMax = this.dataset.shape[2] - (size * 2) - Math.abs(randomShift * 2)
+    // generate a random selection of box pairs from the dataset
     for (let i = 0; i < trainingSize; i++) {
       let randomX = Math.round(((Math.random() * 2) - 1) * randomShift)
       let randomY = Math.round(((Math.random() * 2) - 1) * randomShift)
@@ -78,38 +78,25 @@ class TrainingData {
       cropJobsA.push(box_a)
       cropJobsB.push(box_b)
       boxIndexes.push(Math.floor(Math.random() * this.dataset.shape[0])) // choose a random image to take this sample from
-      randomMotions.push([0.5 + (randomX / size / 2), 0.5 + (randomY / size / 2)])
+      randomMotions.push([-(randomX / size), -(randomY / size)])
     }
 
-    let {x1Tensor, x2Tensor} = tf.tidy(()=> {
+    // crop and resize the samples to the spec, and interlace the frame data so we end up with 6 channel sample images
+    // now arranged RGBRGB, with the older frame first, then the newer frame
+    let interlace = tf.tidy(()=> {
       let cropJobsAT = tf.tensor2d(cropJobsA, [trainingSize, 4], 'float32')
       let cropJobsBT = tf.tensor2d(cropJobsB, [trainingSize, 4], 'float32')
       let boxIdxT = tf.tensor1d(boxIndexes, 'int32')
 
-      return {
-        x1Tensor: tf.image.cropAndResize(this.dataset, cropJobsAT, boxIdxT, [size, size]),
-        x2Tensor: tf.image.cropAndResize(this.dataset, cropJobsBT, boxIdxT, [size, size])
-      }
+      let cropsA = tf.image.cropAndResize(this.dataset, cropJobsAT, boxIdxT, [size, size])
+      let cropsB = tf.image.cropAndResize(this.dataset, cropJobsBT, boxIdxT, [size, size])
+      return tf.concat([cropsA, cropsB], 3)
     })
 
-    let x1 = await x1Tensor.data()
-    x1Tensor.dispose()
-    let x2 = await x2Tensor.data()
-    x2Tensor.dispose()
-
-
-    let zippedData = new Float32Array(x1.length + x2.length)
-    x1.forEach((value, index)=> {
-      zippedData[(index * 2)] = value
-      zippedData[(index * 2) + 1] = x2[index]
-    })
-
-    return tf.tidy(()=> {
-      return {
-        x: tf.tensor4d(zippedData, [trainingSize, size, size, this.dataset.shape[3] * 2]),
-        y: tf.tensor2d(randomMotions, [trainingSize, 2])
-      }
-    })
+    return {
+      x: interlace,
+      y: tf.tidy(()=> tf.tensor(randomMotions, [trainingSize].concat(this.outputShape)))
+    }
   }
 }
 
