@@ -16,9 +16,9 @@ const samplePicsPath = './sample-pics'
 const trainingEpochs = 1
 const batchSize = 2000*4
 const trainingCycles = 7000/4 * 100
-const modelName = 'motionDense2'
+const modelName = 'trueMotionConv1'
 const inputPatchSize = 12 // how big the square tile is that the estimator sees
-const maxMotionEstimate = inputPatchSize / 2 // how big the maximum movement between the two frames is, in pixels, in the auto training set
+const maxMotionEstimate = inputPatchSize - 1 // how big the maximum movement between the two frames is, in pixels, in the auto training set
 const inputShape = [inputPatchSize, inputPatchSize, 6] // 6 channels because two rgb patches are combined
 const modelMultiplier = 1
 
@@ -31,6 +31,7 @@ const optimizer = tf.train.adam(learningRate)
 async function main() {
   console.log("Loading training dataset")
   let training = await TrainingData.load(samplePicsPath)
+  if (modelName.match(/trueMotionConv/)) training.outputShape = [1,1,2]
   console.log("Loaded pictures")
 
   console.log("Setting up model...")
