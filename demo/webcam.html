@@ -31,6 +31,7 @@
         this.pixelHeight = parseInt(this.cameraTag.getAttribute("height"))
         this.motionModelURL = options.modelURL || `../trained-models/trueMotionConv1/model.json`
         this.scale = options.scale || 1.0
+        this.strideScale = options.strideScale || 1.0
 
         this.lastImageTensor = null // persistant to store the last webcam image as a tensorflow tensor
         this.running = false // controls if demo continues running
@@ -41,7 +42,8 @@
 
         console.log("loading model...")
         this.model = await tf.loadModel(this.motionModelURL)
-        //this.crop.resize = this.model.getLayer(null, 0).input.shape.slice(1,3)
+        this.inputLayer = this.model.getLayer(null, 0)
+        if (this.strideScale != 1.0) this.inputLayer.strides = this.inputLayer.strides.map((n)=> Math.round(n * this.strideScale))
         console.log("requesting video stream...")
         const webcamStream = await navigator.mediaDevices.getUserMedia({video: true})
         console.log("ready, starting demo")
@@ -117,8 +119,11 @@
               // let cellPixelBox = this.crop.pixelBoxes[cell]
               // let cellPixelCenter = this.crop.pixelCenters[cell]
               // let strides = this.crop.pixelBoxSizes[cell]
-              let cellPixelBox    = [strides[0] * cellY, strides[1] * cellX, strides[0] * (cellY+1), strides[1] * (cellX+1)]
-              let cellPixelCenter = [strides[0] * (cellY + 0.5), strides[1] * (cellX + 0.5)]
+              //let cellPixelBox    = [strides[0] * cellY, strides[1] * cellX, strides[0] * (cellY+1), strides[1] * (cellX+1)]
+              let cellPixelCenter = [
+                (strides[0] * cellY) + (kernel[0] / 2),
+                (strides[1] * cellX) + (kernel[1] / 2)
+              ]
 
               let visLineX = cellPixelCenter[1] + (motionX * (kernel[1] / 2))
               let visLineY = cellPixelCenter[0] + (motionY * (kernel[0] / 2))
@@ -156,7 +161,8 @@
         canvas: "#vis",
         grid: [24, 18], 
         modelURL: `../trained-models/trueMotionConv4/model.json`,
-        scale: 0.25
+        scale: 0.25,
+        strideScale: 0.5
       })
 
       await demo.start()
