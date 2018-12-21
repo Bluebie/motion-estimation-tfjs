@@ -107,7 +107,8 @@
 
           let dotSize = 3
           let indicatorColor = 'red'
-          let cellPixelSize = this.model.getLayer(null, 0).strides.map((x)=> x / this.scale)
+          let strides = this.model.getLayer(null, 0).strides.map((x)=> x / this.scale)
+          let kernel  = this.model.getLayer(null, 0).kernelSize.map((x)=> x / this.scale)
           for (let cellY = 0; cellY < predictions.shape[1]; cellY++) {
             for (let cellX = 0; cellX < predictions.shape[2]; cellX++) {
               let motionX = predictions.get(0, cellY, cellX, 0)
@@ -115,12 +116,12 @@
 
               // let cellPixelBox = this.crop.pixelBoxes[cell]
               // let cellPixelCenter = this.crop.pixelCenters[cell]
-              // let cellPixelSize = this.crop.pixelBoxSizes[cell]
-              let cellPixelBox = [cellPixelSize[0] * cellY, cellPixelSize[1] * cellX, cellPixelSize[0] * (cellY+1), cellPixelSize[1] * (cellX+1)]
-              let cellPixelCenter = [cellPixelSize[0] * (cellY + 0.5), cellPixelSize[1] * (cellX + 0.5)]
+              // let strides = this.crop.pixelBoxSizes[cell]
+              let cellPixelBox    = [strides[0] * cellY, strides[1] * cellX, strides[0] * (cellY+1), strides[1] * (cellX+1)]
+              let cellPixelCenter = [strides[0] * (cellY + 0.5), strides[1] * (cellX + 0.5)]
 
-              let visLineX = cellPixelCenter[1] + (motionX * (cellPixelSize[1] / 2))
-              let visLineY = cellPixelCenter[0] + (motionY * (cellPixelSize[0] / 2))
+              let visLineX = cellPixelCenter[1] + (motionX * (kernel[1] / 2))
+              let visLineY = cellPixelCenter[0] + (motionY * (kernel[0] / 2))
               this.canvas.beginPath()
               this.canvas.moveTo(cellPixelCenter[1], cellPixelCenter[0])
               this.canvas.lineTo(visLineX, visLineY)
@@ -154,8 +155,8 @@
       window.demo = new MotionDemo({
         canvas: "#vis",
         grid: [24, 18], 
-        modelURL: `../trained-models/trueMotionConv1/model.json`,
-        scale: 0.5
+        modelURL: `../trained-models/trueMotionConv4/model.json`,
+        scale: 0.25
       })
 
       await demo.start()
