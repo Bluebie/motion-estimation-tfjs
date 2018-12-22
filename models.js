@@ -64,7 +64,7 @@ let modelBuilders = {
       filters: Math.round((shape[0] + shape[1]) * 2 * mul),
       kernelSize: [shape[0], shape[1]],
       pad: 'valid',
-      strides: [shape[0] / 2, shape[1] / 2],
+      strides: [shape[0], shape[1]],
       activation: 'tanh'
     }))
     model.add(tf.layers.conv2d({filters: Math.round((shape[0] + shape[1]) * 2 * mul), kernelSize: 1, activation: 'tanh'}))
