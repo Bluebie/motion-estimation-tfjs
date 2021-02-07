@@ -41,14 +41,16 @@
         this.running = true
 
         console.log("loading model...")
-        this.model = await tf.loadModel(this.motionModelURL)
+        this.model = await tf.loadLayersModel(this.motionModelURL)
         this.inputLayer = this.model.getLayer(null, 0)
         if (this.strideScale != 1.0) this.inputLayer.strides = this.inputLayer.strides.map((n)=> Math.round(n * this.strideScale))
         console.log("requesting video stream...")
         const webcamStream = await navigator.mediaDevices.getUserMedia({video: true})
         console.log("ready, starting demo")
+        this.cameraTag.addEventListener('loadeddata', () => {
+          requestAnimationFrame(()=> this.process())
+        })
         this.cameraTag.srcObject = webcamStream
-        requestAnimationFrame(()=> this.process())
       }
 
       // stop the demo from running
@@ -71,12 +73,12 @@
         // fetch the video frame and check if it's content has changed
         let thisImageTensor = tf.tidy(()=> {
           // grab a tensor snapshot of the current webcam feed
-          let image = tf.fromPixels(this.cameraTag)
+          let image = tf.browser.fromPixels(this.cameraTag)
           
           // verify we have an old image to compare to
           if (this.lastImageTensor) {
             // check if the frames are the different
-            isNewFrame = !tf.all(tf.equal(this.lastImageTensor, image)).get()
+            isNewFrame = !(this.lastImageTensor.equal(image).all().arraySync())[0]
           } else {
             // if there's no last frame, then this one's definitely new! the first is always new!
             isNewFrame = true
@@ -103,9 +105,11 @@
           input.dispose()
 
           // draw the new frame to our visualisation canvas
-          await tf.toPixels(thisImageTensor, vis)
+          await tf.browser.toPixels(thisImageTensor, vis)
 
-          let predictions = await predictionsPromise
+          let predictionTensor = await predictionsPromise
+          let predictions = await predictionTensor.buffer()
+          predictionTensor.dispose()
 
           let dotSize = 3
           let indicatorColor = 'red'
@@ -140,7 +144,6 @@
               this.canvas.fill()
             }
           }
-          predictions.dispose()
 
           // clear out memory from old frame and make this frame in to the old frame now we're done
           if (this.lastImageTensor) this.lastImageTensor.dispose()
